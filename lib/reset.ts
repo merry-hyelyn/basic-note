@@ -4,6 +4,9 @@ import { stopAutoSync } from "@/lib/sync/engine";
 
 export const RESET_PENDING_KEY = "bn_reset_pending";
 export const LAST_SYNC_KEY = "securenote_last_sync";
+// Reset boundary read by the sync engine to drop pre-reset (old master key)
+// ciphertext. Distinct from the rolling sync cursor so normal syncs don't move it.
+export const RESET_AT_KEY = "bn_reset_at";
 
 /**
  * Permanently wipes all local and remote data, unregisters service workers,
@@ -77,6 +80,7 @@ export async function resetEverything() {
   try {
     localStorage.setItem(RESET_PENDING_KEY, "1");
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+    localStorage.setItem(RESET_AT_KEY, String(Date.now()));
     if (!remoteWipeOk) localStorage.setItem("bn_reset_remote_failed", "1");
   } catch {}
 

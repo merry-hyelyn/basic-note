@@ -121,6 +121,11 @@ async function pullSettings(): Promise<AppSettings | null> {
 // ─── Full Sync ───────────────────────────────────────────────
 
 const LAST_SYNC_KEY = "securenote_last_sync";
+// Reset boundary — set ONLY by resetEverything(). Distinct from the rolling
+// sync cursor: it must NOT advance on normal syncs, otherwise offline-created
+// entities (whose updatedAt predates the rolling cursor) get filtered out as
+// "old" and never reach other devices. Defaults to 0 (apply everything).
+const RESET_AT_KEY = "bn_reset_at";
 
 function getLastSyncAt(): number {
   if (typeof window === "undefined") return 0;
@@ -130,6 +135,25 @@ function getLastSyncAt(): number {
 function setLastSyncAt(ts: number) {
   if (typeof window !== "undefined") {
     localStorage.setItem(LAST_SYNC_KEY, ts.toString());
+  }
+}
+
+function getResetAt(): number {
+  if (typeof window === "undefined") return 0;
+  return parseInt(localStorage.getItem(RESET_AT_KEY) ?? "0", 10);
+}
+
+// Full reconciliation from the reset boundary (not the rolling cursor) so late
+// arrivals — e.g. notes created offline on another device and pushed on its
+// reconnect — are always pulled regardless of their (older) updatedAt.
+async function fullPull() {
+  if (!SYNC_ENABLED) return;
+  if (!navigator.onLine) return;
+  try {
+    await pullAll(getResetAt());
+    setLastSyncAt(Date.now());
+  } catch (e) {
+    console.error("[sync] full pull failed:", e);
   }
 }
 
@@ -251,10 +275,11 @@ async function handleRealtimeChange(payload: {
   const row = payload.new as unknown as EncryptedEntity;
   if (!row || !row.id) return;
 
-  // Skip rows from before the last successful sync. resetEverything() advances
-  // LAST_SYNC_KEY to Date.now() so pre-reset ciphertext (encrypted under the
-  // previous master key) cannot leak back in via realtime events.
-  if (row.updated_at <= getLastSyncAt()) return;
+  // Drop only PRE-RESET rows (ciphertext under a previous master key).
+  // resetEverything() sets RESET_AT_KEY. We must NOT gate on the rolling sync
+  // cursor here — an offline-created entity carries an older updatedAt and
+  // would be wrongly skipped once this device's cursor moved past it.
+  if (row.updated_at <= getResetAt()) return;
 
   const parsed = JSON.parse(row.data as string);
   const entity = { id: row.id, ...parsed };
@@ -307,8 +332,11 @@ export function startAutoSync() {
   if (!SYNC_ENABLED) return;
   stopAutoSync();
 
-  // Initial pull
-  syncPull();
+  // On start: push any local-only changes (e.g. notes created offline before
+  // this session) up, then full-pull remote changes down. syncPull alone would
+  // never upload offline work, and an incremental pull could miss late arrivals.
+  syncPush();
+  fullPull();
 
   // Realtime: instant sync when another device pushes
   realtimeChannel = supabase
@@ -357,6 +385,8 @@ export function stopAutoSync() {
 }
 
 function handleOnline() {
+  // Push local (incl. offline-created) changes, then full reconcile so this
+  // device also catches anything pushed by others while it was offline.
   syncPush();
-  syncPull();
+  fullPull();
 }
