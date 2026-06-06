@@ -83,6 +83,14 @@ export function NoteEditor({ noteId }: { noteId: string }) {
     router.push("/notes");
   }, [noteId, deleteNote, router, t]);
 
+  // Keep the contentEditable's selection/focus when a toolbar button is
+  // pressed. Without this the tap blurs the editor and the caret is lost —
+  // harmless on desktop (selection restore covers it) but on mobile the
+  // restore is unreliable, so formatting commands lose their target.
+  const keepFocus = useCallback((e: { preventDefault: () => void }) => {
+    e.preventDefault();
+  }, []);
+
   if (!note) {
     return (
       <div className="text-muted-foreground text-sm py-8">{t("lock.loading")}</div>
@@ -115,7 +123,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
             }}
           >
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" aria-label="사이즈">
+              <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" aria-label="사이즈" onPointerDown={() => editorRef.current?.saveSelection()}>
                 <Type className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -146,28 +154,29 @@ export function NoteEditor({ noteId }: { noteId: string }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onClick={() => editorRef.current?.toggleBulletAtCaret()} aria-label="불릿 리스트">
+          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onPointerDown={keepFocus} onClick={() => editorRef.current?.toggleBulletAtCaret()} aria-label="불릿 리스트">
             <List className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onClick={() => editorRef.current?.execBold()} aria-label="Bold">
+          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onPointerDown={keepFocus} onClick={() => editorRef.current?.execBold()} aria-label="Bold">
             <Bold className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onClick={() => editorRef.current?.execItalic()} aria-label="Italic">
+          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onPointerDown={keepFocus} onClick={() => editorRef.current?.execItalic()} aria-label="Italic">
             <Italic className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onClick={() => editorRef.current?.execUnderline()} aria-label="Underline">
+          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onPointerDown={keepFocus} onClick={() => editorRef.current?.execUnderline()} aria-label="Underline">
             <Underline className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onClick={() => editorRef.current?.execStrikethrough()} aria-label="Strikethrough">
+          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onPointerDown={keepFocus} onClick={() => editorRef.current?.execStrikethrough()} aria-label="Strikethrough">
             <Strikethrough className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onClick={() => editorRef.current?.toggleHighlight()} aria-label="Highlight">
+          <Button variant="ghost" size="sm" className="text-foreground h-8 w-8 p-0" onPointerDown={keepFocus} onClick={() => editorRef.current?.toggleHighlight()} aria-label="Highlight">
             <Highlighter className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className="text-foreground h-8 w-8 p-0"
+            onPointerDown={keepFocus}
             onClick={() => {
               const handle = editorRef.current;
               if (!handle) return;

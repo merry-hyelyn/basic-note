@@ -512,13 +512,19 @@ export const PlainEditor = forwardRef<PlainEditorHandle, PlainEditorProps>(
       [exec, autoLinkBeforeCaret, saveSoon]
     );
 
-    // Cmd/Ctrl + click on an anchor → open in new tab.
+    // Open an anchor in a new tab. Desktop requires Cmd/Ctrl so a plain click
+    // can still position the caret for editing. Touch devices have no modifier
+    // key, so a tap directly on the link text opens it (a tap outside the
+    // anchor falls through to normal caret placement).
     const handleClick = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        const mod = e.metaKey || e.ctrlKey;
-        if (!mod) return;
         const anchor = findAnchorAncestor(e.target as Node);
         if (!anchor) return;
+        const mod = e.metaKey || e.ctrlKey;
+        const coarse =
+          typeof window !== "undefined" &&
+          !!window.matchMedia?.("(pointer: coarse)").matches;
+        if (!mod && !coarse) return;
         e.preventDefault();
         const href = anchor.getAttribute("href");
         if (!href) return;
